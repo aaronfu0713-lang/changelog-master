@@ -97,7 +97,7 @@ export function Header({
 
           <div className="flex items-center gap-1">
             {lastFetched && (
-              <span className="text-sm text-charcoal-500 dark:text-charcoal-400 hidden sm:block mr-2 transition-colors">
+              <span className="text-sm text-charcoal-500 dark:text-cream-300 hidden sm:block mr-2 transition-colors">
                 Updated: {formatLastFetched(lastFetched)}
               </span>
             )}

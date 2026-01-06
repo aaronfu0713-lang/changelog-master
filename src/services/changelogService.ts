@@ -1,6 +1,6 @@
-import type { ChangelogVersion, ChangelogItem } from '../types';
+import type { ChangelogVersion, ChangelogItem, ChangelogSource } from '../types';
 
-const CHANGELOG_URL = 'https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md';
+const DEFAULT_CHANGELOG_URL = 'https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md';
 
 async function fetchWithRetry(url: string, retries = 3): Promise<Response> {
   let lastError: Error | null = null;
@@ -23,12 +23,65 @@ async function fetchWithRetry(url: string, retries = 3): Promise<Response> {
   throw lastError || new Error('Failed to fetch after retries');
 }
 
+// Fetch all available changelog sources
+export async function fetchSources(): Promise<ChangelogSource[]> {
+  try {
+    const response = await fetch('/api/sources');
+    if (!response.ok) throw new Error('Failed to fetch sources');
+    return response.json();
+  } catch (error) {
+    console.error('Failed to fetch sources:', error);
+    return [];
+  }
+}
+
+// Fetch changelog from the default URL
 export async function fetchChangelog(): Promise<string> {
-  const response = await fetchWithRetry(CHANGELOG_URL);
+  const response = await fetchWithRetry(DEFAULT_CHANGELOG_URL);
   return response.text();
 }
 
-export function parseChangelog(markdown: string): ChangelogVersion[] {
+// Fetch changelog from a specific source
+export async function fetchChangelogFromSource(sourceId: string): Promise<{ markdown: string; source: ChangelogSource }> {
+  const response = await fetch(`/api/sources/${sourceId}/changelog`);
+  if (!response.ok) throw new Error('Failed to fetch changelog from source');
+  return response.json();
+}
+
+// Fetch changelogs from all active sources
+export async function fetchAllActiveChangelogs(): Promise<{ sourceId: string; sourceName: string; markdown: string }[]> {
+  const sources = await fetchSources();
+  const activeSources = sources.filter(s => s.is_active);
+
+  const results = await Promise.allSettled(
+    activeSources.map(async (source) => {
+      try {
+        const response = await fetch(`/api/sources/${source.id}/changelog`);
+        if (!response.ok) throw new Error('Failed to fetch');
+        const data = await response.json();
+        return {
+          sourceId: source.id,
+          sourceName: source.name,
+          markdown: data.markdown,
+        };
+      } catch {
+        console.error(`Failed to fetch changelog from ${source.name}`);
+        return null;
+      }
+    })
+  );
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<{ sourceId: string; sourceName: string; markdown: string } | null> => r.status === 'fulfilled')
+    .map(r => r.value)
+    .filter((r): r is { sourceId: string; sourceName: string; markdown: string } => r !== null);
+}
+
+export function parseChangelog(
+  markdown: string,
+  sourceId?: string,
+  sourceName?: string
+): ChangelogVersion[] {
   const versions: ChangelogVersion[] = [];
   const lines = markdown.split('\n');
 
@@ -45,6 +98,8 @@ export function parseChangelog(markdown: string): ChangelogVersion[] {
         version: versionMatch[1],
         date: versionMatch[2]?.trim() || '',
         items: [],
+        sourceId,
+        sourceName,
       };
       continue;
     }

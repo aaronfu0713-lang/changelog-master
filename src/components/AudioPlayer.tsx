@@ -43,14 +43,14 @@ export function AudioPlayer({
 
   if (!audioUrl) {
     return (
-      <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <div className="border-t border-cream-300 dark:border-charcoal-500 bg-white dark:bg-charcoal-800 p-4 transition-colors duration-500">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-center gap-4">
-            <Volume2 className="w-4 h-4 text-gray-400" />
+            <Volume2 className="w-4 h-4 text-charcoal-400 dark:text-charcoal-500" />
             <select
               value={selectedVoice}
               onChange={(e) => onVoiceChange(e.target.value as VoiceName)}
-              className="text-sm bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              className="text-sm bg-cream-100 dark:bg-charcoal-700 border border-cream-300 dark:border-charcoal-500 rounded-xl px-4 py-2 text-charcoal-900 dark:text-cream-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors"
             >
               {VOICE_OPTIONS.map((voice) => (
                 <option key={voice.name} value={voice.name}>
@@ -58,7 +58,7 @@ export function AudioPlayer({
                 </option>
               ))}
             </select>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="text-sm text-charcoal-500 dark:text-charcoal-400">
               Click a speaker icon to generate audio
             </span>
           </div>
@@ -68,24 +68,24 @@ export function AudioPlayer({
   }
 
   return (
-    <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+    <div className="border-t border-cream-300 dark:border-charcoal-500 bg-white dark:bg-charcoal-800 p-4 shadow-lg transition-colors duration-500">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col gap-3">
           {/* Now Playing Label */}
           {playingLabel && (
-            <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-              Now playing: <span className="font-medium text-amber-600 dark:text-amber-400">{playingLabel}</span>
+            <div className="text-center text-sm text-charcoal-500 dark:text-charcoal-400">
+              Now playing: <span className="font-medium text-coral-600 dark:text-coral-400">{playingLabel}</span>
             </div>
           )}
 
           <div className="flex flex-wrap items-center justify-center gap-4">
             {/* Voice Selector */}
             <div className="flex items-center gap-2">
-              <Volume2 className="w-4 h-4 text-gray-500" />
+              <Volume2 className="w-4 h-4 text-charcoal-500 dark:text-charcoal-400" />
               <select
                 value={selectedVoice}
                 onChange={(e) => onVoiceChange(e.target.value as VoiceName)}
-                className="text-sm bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="text-sm bg-cream-100 dark:bg-charcoal-700 border border-cream-300 dark:border-charcoal-500 rounded-xl px-4 py-2 text-charcoal-900 dark:text-cream-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors"
               >
                 {VOICE_OPTIONS.map((voice) => (
                   <option key={voice.name} value={voice.name}>
@@ -97,11 +97,11 @@ export function AudioPlayer({
 
             {/* Speed Selector */}
             <div className="flex items-center gap-2">
-              <Gauge className="w-4 h-4 text-gray-500" />
+              <Gauge className="w-4 h-4 text-charcoal-500 dark:text-charcoal-400" />
               <select
                 value={playbackSpeed}
                 onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
-                className="text-sm bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="text-sm bg-cream-100 dark:bg-charcoal-700 border border-cream-300 dark:border-charcoal-500 rounded-xl px-4 py-2 text-charcoal-900 dark:text-cream-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors"
               >
                 {SPEED_OPTIONS.map((speed) => (
                   <option key={speed} value={speed}>
@@ -115,26 +115,26 @@ export function AudioPlayer({
             <div className="flex items-center gap-3 flex-1 min-w-[200px]">
               <button
                 onClick={isPlaying ? onPause : onPlay}
-                className="p-2 bg-amber-500 text-white rounded-full hover:bg-amber-600 transition-colors flex-shrink-0"
+                className="p-3 bg-teal-500 hover:bg-teal-600 text-white rounded-full transition-all shadow-md hover:shadow-lg flex-shrink-0"
                 aria-label={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               </button>
 
               <div className="flex-1 flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-10 flex-shrink-0">{formatTime(currentTime)}</span>
-                <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden min-w-[60px]">
+                <span className="text-xs text-charcoal-500 dark:text-charcoal-400 w-10 flex-shrink-0 font-mono">{formatTime(currentTime)}</span>
+                <div className="flex-1 h-2 bg-cream-200 dark:bg-charcoal-600 rounded-full overflow-hidden min-w-[60px]">
                   <div
-                    className="h-full bg-amber-500 transition-all duration-100"
+                    className="h-full bg-gradient-to-r from-teal-500 to-coral-500 rounded-full transition-all duration-100"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
-                <span className="text-xs text-gray-500 w-10 flex-shrink-0">{formatTime(duration)}</span>
+                <span className="text-xs text-charcoal-500 dark:text-charcoal-400 w-10 flex-shrink-0 font-mono">{formatTime(duration)}</span>
               </div>
 
               <button
                 onClick={onDownload}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+                className="p-2.5 text-charcoal-500 dark:text-charcoal-400 hover:text-charcoal-900 dark:hover:text-cream-50 hover:bg-cream-200 dark:hover:bg-charcoal-700 rounded-xl transition-colors flex-shrink-0"
                 aria-label="Download audio"
               >
                 <Download className="w-4 h-4" />

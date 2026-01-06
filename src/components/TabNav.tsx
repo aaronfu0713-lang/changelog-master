@@ -6,15 +6,15 @@ interface TabNavProps {
 
 export function TabNav({ activeTab, onTabChange, isAnalyzing }: TabNavProps) {
   return (
-    <nav className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+    <nav className="border-b border-cream-300 dark:border-charcoal-500 bg-white dark:bg-charcoal-800 transition-colors duration-500">
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex gap-1">
           <button
             onClick={() => onTabChange('changelog')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-5 py-3.5 text-sm font-medium border-b-2 transition-all duration-300 ${
               activeTab === 'changelog'
-                ? 'border-amber-500 text-amber-600 dark:text-amber-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+                : 'border-transparent text-charcoal-500 dark:text-charcoal-400 hover:text-charcoal-900 dark:hover:text-cream-50 hover:bg-cream-100 dark:hover:bg-charcoal-700'
             }`}
             aria-selected={activeTab === 'changelog'}
             role="tab"
@@ -23,17 +23,17 @@ export function TabNav({ activeTab, onTabChange, isAnalyzing }: TabNavProps) {
           </button>
           <button
             onClick={() => onTabChange('matters')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`px-5 py-3.5 text-sm font-medium border-b-2 transition-all duration-300 flex items-center gap-2 ${
               activeTab === 'matters'
-                ? 'border-amber-500 text-amber-600 dark:text-amber-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+                : 'border-transparent text-charcoal-500 dark:text-charcoal-400 hover:text-charcoal-900 dark:hover:text-cream-50 hover:bg-cream-100 dark:hover:bg-charcoal-700'
             }`}
             aria-selected={activeTab === 'matters'}
             role="tab"
           >
             What Matters
             {isAnalyzing && (
-              <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+              <span className="w-2 h-2 bg-coral-500 rounded-full animate-pulse" />
             )}
           </button>
         </div>

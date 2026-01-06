@@ -1,7 +1,18 @@
+export interface ChangelogSource {
+  id: string;
+  name: string;
+  url: string;
+  is_active: boolean;
+  last_version: string | null;
+  last_checked_at: string | null;
+}
+
 export interface ChangelogVersion {
   version: string;
   date: string;
   items: ChangelogItem[];
+  sourceId?: string;
+  sourceName?: string;
 }
 
 export interface ChangelogItem {

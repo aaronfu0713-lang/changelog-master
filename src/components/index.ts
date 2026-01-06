@@ -7,3 +7,4 @@ export * from './Toast';
 export * from './LoadingSkeleton';
 export * from './SettingsPanel';
 export * from './ChatPanel';
+export * from './SourcesPanel';

@@ -15,10 +15,10 @@ export function Toast({ message, type, onClose }: ToastProps) {
 
   return (
     <div
-      className={`fixed bottom-4 right-4 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg transition-all ${
+      className={`fixed bottom-28 right-6 flex items-center gap-3 px-5 py-4 rounded-xl shadow-xl backdrop-blur-sm z-50 transition-all duration-300 ${
         type === 'success'
-          ? 'bg-green-500 text-white'
-          : 'bg-red-500 text-white'
+          ? 'bg-teal-500/95 text-white'
+          : 'bg-coral-600/95 text-white'
       }`}
       role="alert"
     >
@@ -27,10 +27,10 @@ export function Toast({ message, type, onClose }: ToastProps) {
       ) : (
         <XCircle className="w-5 h-5" />
       )}
-      <span>{message}</span>
+      <span className="font-medium">{message}</span>
       <button
         onClick={onClose}
-        className="p-1 hover:bg-white/20 rounded transition-colors"
+        className="p-1.5 hover:bg-white/20 rounded-lg transition-colors ml-2"
         aria-label="Close notification"
       >
         <X className="w-4 h-4" />

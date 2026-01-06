@@ -12,7 +12,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const CHANGELOG_URL = 'https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md';
+// Default source URL (used for seeding)
+const DEFAULT_CHANGELOG_URL = 'https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md';
 const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL;
@@ -68,7 +69,35 @@ db.exec(`
     analysis_json TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS changelog_sources (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL UNIQUE,
+    is_active BOOLEAN DEFAULT 1,
+    last_version TEXT,
+    last_checked_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_changelog_sources_active ON changelog_sources(is_active);
 `);
+
+// Migrate existing changelog_history to support source_id
+try {
+  db.exec(`ALTER TABLE changelog_history ADD COLUMN source_id TEXT`);
+} catch {
+  // Column already exists
+}
+
+// Seed default source if none exists
+const sourceCount = (db.prepare('SELECT COUNT(*) as count FROM changelog_sources').get() as { count: number }).count;
+if (sourceCount === 0) {
+  db.prepare(`
+    INSERT INTO changelog_sources (id, name, url, is_active)
+    VALUES (?, ?, ?, 1)
+  `).run('src_claude_code', 'Claude Code', DEFAULT_CHANGELOG_URL);
+}
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -96,24 +125,51 @@ function intervalToCron(intervalMs: number): string | null {
   return `*/${Math.max(1, Math.round(minutes))} * * * *`;
 }
 
-function getLastKnownVersion(): string | null {
+interface ChangelogSource {
+  id: string;
+  name: string;
+  url: string;
+  is_active: boolean;
+  last_version: string | null;
+  last_checked_at: string | null;
+}
+
+function getActiveSources(): ChangelogSource[] {
+  const stmt = db.prepare('SELECT * FROM changelog_sources WHERE is_active = 1');
+  return stmt.all() as ChangelogSource[];
+}
+
+function getAllSources(): ChangelogSource[] {
+  const stmt = db.prepare('SELECT * FROM changelog_sources ORDER BY created_at ASC');
+  return stmt.all() as ChangelogSource[];
+}
+
+function getLastKnownVersion(sourceId?: string): string | null {
+  if (sourceId) {
+    const stmt = db.prepare('SELECT version FROM changelog_history WHERE source_id = ? ORDER BY detected_at DESC LIMIT 1');
+    const row = stmt.get(sourceId) as { version: string } | undefined;
+    return row?.version ?? null;
+  }
   const stmt = db.prepare('SELECT version FROM changelog_history ORDER BY detected_at DESC LIMIT 1');
   const row = stmt.get() as { version: string } | undefined;
   return row?.version ?? null;
 }
 
-function saveVersion(version: string): void {
-  const stmt = db.prepare('INSERT OR IGNORE INTO changelog_history (version) VALUES (?)');
-  stmt.run(version);
+function saveVersion(version: string, sourceId: string): void {
+  const stmt = db.prepare('INSERT OR IGNORE INTO changelog_history (version, source_id) VALUES (?, ?)');
+  stmt.run(version, sourceId);
+
+  // Update source's last_version
+  db.prepare('UPDATE changelog_sources SET last_version = ?, last_checked_at = CURRENT_TIMESTAMP WHERE id = ?').run(version, sourceId);
 }
 
-function markVersionNotified(version: string): void {
-  const stmt = db.prepare('UPDATE changelog_history SET notified = 1 WHERE version = ?');
-  stmt.run(version);
+function markVersionNotified(version: string, sourceId: string): void {
+  const stmt = db.prepare('UPDATE changelog_history SET notified = 1 WHERE version = ? AND source_id = ?');
+  stmt.run(version, sourceId);
 }
 
-async function fetchChangelog(): Promise<string> {
-  const response = await fetch(CHANGELOG_URL);
+async function fetchChangelog(url: string): Promise<string> {
+  const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to fetch changelog: ${response.status}`);
   return response.text();
 }
@@ -277,68 +333,87 @@ async function sendEmailWithAttachment(
   return response.ok;
 }
 
-async function checkForNewChangelog(): Promise<void> {
+async function checkSourceForNewChangelog(source: ChangelogSource): Promise<void> {
   try {
-    console.log('[Monitor] Checking for new changelog...');
+    console.log(`[Monitor] Checking source: ${source.name} (${source.url})`);
 
-    const markdown = await fetchChangelog();
+    const markdown = await fetchChangelog(source.url);
     const latest = parseLatestVersion(markdown);
 
     if (!latest) {
-      console.log('[Monitor] Could not parse changelog');
+      console.log(`[Monitor] Could not parse changelog for ${source.name}`);
       return;
     }
 
-    const lastKnown = getLastKnownVersion();
-    console.log(`[Monitor] Latest: ${latest.version}, Last known: ${lastKnown}`);
+    const lastKnown = getLastKnownVersion(source.id);
+    console.log(`[Monitor] ${source.name}: Latest: ${latest.version}, Last known: ${lastKnown}`);
 
     if (lastKnown === latest.version) {
-      console.log('[Monitor] No new version detected');
+      console.log(`[Monitor] ${source.name}: No new version detected`);
       return;
     }
 
-    console.log(`[Monitor] New version detected: ${latest.version}`);
-    saveVersion(latest.version);
+    console.log(`[Monitor] ${source.name}: New version detected: ${latest.version}`);
+    saveVersion(latest.version, source.id);
 
     // Check if notifications are enabled
     const settingsStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
     const notifyEnabled = settingsStmt.get('emailNotificationsEnabled') as { value: string } | undefined;
 
     if (notifyEnabled?.value !== 'true') {
-      console.log('[Monitor] Email notifications disabled, skipping');
+      console.log(`[Monitor] Email notifications disabled for ${source.name}, skipping`);
       return;
     }
 
     // Analyze the changelog
-    console.log('[Monitor] Analyzing changelog...');
+    console.log(`[Monitor] Analyzing changelog for ${source.name}...`);
     const analysis = await analyzeChangelog(latest.content);
 
     if (!analysis) {
-      console.log('[Monitor] Failed to analyze changelog');
+      console.log(`[Monitor] Failed to analyze changelog for ${source.name}`);
       return;
     }
 
-    analysis.version = latest.version;
+    analysis.version = `${source.name} ${latest.version}`;
 
     // Generate audio
-    console.log('[Monitor] Generating audio...');
+    console.log(`[Monitor] Generating audio for ${source.name}...`);
     const voiceSetting = settingsStmt.get('notificationVoice') as { value: string } | undefined;
     const voice = voiceSetting?.value || 'Charon';
     const audioBuffer = await generateTTSAudio(analysis.tldr, voice);
 
     // Send email
-    console.log('[Monitor] Sending notification email...');
+    console.log(`[Monitor] Sending notification email for ${source.name}...`);
     const sent = await sendEmailWithAttachment(analysis, audioBuffer);
 
     if (sent) {
-      markVersionNotified(latest.version);
-      console.log(`[Monitor] Notification sent for ${latest.version}`);
+      markVersionNotified(latest.version, source.id);
+      console.log(`[Monitor] Notification sent for ${source.name} ${latest.version}`);
     } else {
-      console.log('[Monitor] Failed to send notification');
+      console.log(`[Monitor] Failed to send notification for ${source.name}`);
     }
   } catch (error) {
-    console.error('[Monitor] Error:', error);
+    console.error(`[Monitor] Error checking ${source.name}:`, error);
   }
+}
+
+async function checkForNewChangelog(): Promise<void> {
+  console.log('[Monitor] Starting changelog check for all active sources...');
+
+  const sources = getActiveSources();
+
+  if (sources.length === 0) {
+    console.log('[Monitor] No active sources configured');
+    return;
+  }
+
+  console.log(`[Monitor] Checking ${sources.length} source(s)`);
+
+  for (const source of sources) {
+    await checkSourceForNewChangelog(source);
+  }
+
+  console.log('[Monitor] Finished checking all sources');
 }
 
 function startMonitoring(intervalMs: number): void {
@@ -492,10 +567,30 @@ app.post('/api/send-demo-email', async (req, res) => {
   }
 
   try {
-    const { voice = 'Charon' } = req.body;
+    const { voice = 'Charon', sourceId } = req.body;
 
-    console.log('[Demo] Fetching changelog...');
-    const markdown = await fetchChangelog();
+    // Get source URL
+    let sourceUrl = DEFAULT_CHANGELOG_URL;
+    let sourceName = 'Claude Code';
+
+    if (sourceId) {
+      const stmt = db.prepare('SELECT * FROM changelog_sources WHERE id = ?');
+      const source = stmt.get(sourceId) as ChangelogSource | undefined;
+      if (source) {
+        sourceUrl = source.url;
+        sourceName = source.name;
+      }
+    } else {
+      // Use first active source
+      const sources = getActiveSources();
+      if (sources.length > 0) {
+        sourceUrl = sources[0].url;
+        sourceName = sources[0].name;
+      }
+    }
+
+    console.log(`[Demo] Fetching changelog from ${sourceName}...`);
+    const markdown = await fetchChangelog(sourceUrl);
     const latest = parseLatestVersion(markdown);
 
     if (!latest) {
@@ -503,7 +598,7 @@ app.post('/api/send-demo-email', async (req, res) => {
       return;
     }
 
-    console.log(`[Demo] Analyzing version ${latest.version}...`);
+    console.log(`[Demo] Analyzing ${sourceName} version ${latest.version}...`);
     const analysis = await analyzeChangelog(latest.content);
 
     if (!analysis) {
@@ -511,7 +606,7 @@ app.post('/api/send-demo-email', async (req, res) => {
       return;
     }
 
-    analysis.version = latest.version;
+    analysis.version = `${sourceName} ${latest.version}`;
 
     console.log('[Demo] Generating audio...');
     const audioBuffer = await generateTTSAudio(analysis.tldr, voice);
@@ -546,9 +641,204 @@ app.get('/api/monitor/status', (_req, res) => {
 });
 
 app.get('/api/monitor/history', (_req, res) => {
-  const stmt = db.prepare('SELECT version, detected_at, notified FROM changelog_history ORDER BY detected_at DESC LIMIT 20');
+  const stmt = db.prepare('SELECT version, detected_at, notified, source_id FROM changelog_history ORDER BY detected_at DESC LIMIT 20');
   const rows = stmt.all();
   res.json(rows);
+});
+
+// ============ Changelog Sources Endpoints ============
+
+// Get all sources
+app.get('/api/sources', (_req, res) => {
+  const sources = getAllSources();
+  res.json(sources);
+});
+
+// Get a single source
+app.get('/api/sources/:id', (req, res) => {
+  const { id } = req.params;
+  const stmt = db.prepare('SELECT * FROM changelog_sources WHERE id = ?');
+  const source = stmt.get(id);
+
+  if (!source) {
+    res.status(404).json({ error: 'Source not found' });
+    return;
+  }
+
+  res.json(source);
+});
+
+// Create a new source
+app.post('/api/sources', (req, res) => {
+  const { name, url } = req.body;
+
+  if (!name || !url) {
+    res.status(400).json({ error: 'Name and URL are required' });
+    return;
+  }
+
+  // Validate URL format
+  try {
+    new URL(url);
+  } catch {
+    res.status(400).json({ error: 'Invalid URL format' });
+    return;
+  }
+
+  const id = `src_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO changelog_sources (id, name, url, is_active)
+      VALUES (?, ?, ?, 1)
+    `);
+    stmt.run(id, name, url);
+
+    res.json({ id, name, url, is_active: true });
+  } catch (error: unknown) {
+    if ((error as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      res.status(409).json({ error: 'A source with this URL already exists' });
+    } else {
+      console.error('Failed to create source:', error);
+      res.status(500).json({ error: 'Failed to create source' });
+    }
+  }
+});
+
+// Update a source
+app.patch('/api/sources/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, url, is_active } = req.body;
+
+  const updates: string[] = [];
+  const values: unknown[] = [];
+
+  if (name !== undefined) {
+    updates.push('name = ?');
+    values.push(name);
+  }
+
+  if (url !== undefined) {
+    try {
+      new URL(url);
+    } catch {
+      res.status(400).json({ error: 'Invalid URL format' });
+      return;
+    }
+    updates.push('url = ?');
+    values.push(url);
+  }
+
+  if (is_active !== undefined) {
+    updates.push('is_active = ?');
+    values.push(is_active ? 1 : 0);
+  }
+
+  if (updates.length === 0) {
+    res.status(400).json({ error: 'No updates provided' });
+    return;
+  }
+
+  values.push(id);
+
+  try {
+    const stmt = db.prepare(`UPDATE changelog_sources SET ${updates.join(', ')} WHERE id = ?`);
+    const result = stmt.run(...values);
+
+    if (result.changes === 0) {
+      res.status(404).json({ error: 'Source not found' });
+      return;
+    }
+
+    res.json({ success: true });
+  } catch (error: unknown) {
+    if ((error as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      res.status(409).json({ error: 'A source with this URL already exists' });
+    } else {
+      console.error('Failed to update source:', error);
+      res.status(500).json({ error: 'Failed to update source' });
+    }
+  }
+});
+
+// Delete a source
+app.delete('/api/sources/:id', (req, res) => {
+  const { id } = req.params;
+
+  // Delete associated history
+  db.prepare('DELETE FROM changelog_history WHERE source_id = ?').run(id);
+
+  // Delete source
+  const stmt = db.prepare('DELETE FROM changelog_sources WHERE id = ?');
+  const result = stmt.run(id);
+
+  if (result.changes === 0) {
+    res.status(404).json({ error: 'Source not found' });
+    return;
+  }
+
+  res.json({ success: true });
+});
+
+// Fetch changelog from a source (for preview)
+app.get('/api/sources/:id/changelog', async (req, res) => {
+  const { id } = req.params;
+  const stmt = db.prepare('SELECT * FROM changelog_sources WHERE id = ?');
+  const source = stmt.get(id) as ChangelogSource | undefined;
+
+  if (!source) {
+    res.status(404).json({ error: 'Source not found' });
+    return;
+  }
+
+  try {
+    const markdown = await fetchChangelog(source.url);
+    res.json({ markdown, source });
+  } catch (error) {
+    console.error(`Failed to fetch changelog for ${source.name}:`, error);
+    res.status(500).json({ error: 'Failed to fetch changelog' });
+  }
+});
+
+// Test a URL to see if it's a valid changelog
+app.post('/api/sources/test', async (req, res) => {
+  const { url } = req.body;
+
+  if (!url) {
+    res.status(400).json({ error: 'URL is required' });
+    return;
+  }
+
+  try {
+    new URL(url);
+  } catch {
+    res.status(400).json({ error: 'Invalid URL format' });
+    return;
+  }
+
+  try {
+    const markdown = await fetchChangelog(url);
+    const latest = parseLatestVersion(markdown);
+
+    if (!latest) {
+      res.json({
+        valid: false,
+        message: 'Could not parse version from this URL. Make sure it contains markdown with version headers like "## 1.0.0"',
+      });
+      return;
+    }
+
+    res.json({
+      valid: true,
+      latestVersion: latest.version,
+      preview: latest.content.slice(0, 500) + (latest.content.length > 500 ? '...' : ''),
+    });
+  } catch (error) {
+    res.json({
+      valid: false,
+      message: `Failed to fetch URL: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    });
+  }
 });
 
 // Chat endpoint - Gemini-powered changelog assistant
@@ -565,7 +855,11 @@ app.post('/api/chat', async (req, res) => {
 You have access to specific changelog versions that the user has selected.
 Be concise but thorough. Use bullet points for lists.
 If the user asks about something not in the provided context, say so.
-Focus on practical implications for developers.`;
+Focus on practical implications for developers.
+
+IMPORTANT FORMATTING RULES:
+- NEVER use em dashes (—) or en dashes (–). Use regular hyphens (-) or colons (:) instead.
+- Keep responses clean and readable.`;
 
     const contextSection = context
       ? `\n\n## Selected Changelog Versions:\n${context}\n\n---\n`

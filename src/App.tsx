@@ -5,7 +5,7 @@ import { useTheme, useChangelog, useAudio } from './hooks';
 import { sendChangelogEmail } from './services';
 
 function App() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, setDefaultTheme, getDefaultTheme } = useTheme();
   const {
     rawChangelog,
     parsedChangelog,
@@ -15,7 +15,11 @@ function App() {
     isAnalyzing,
     error,
     lastFetched,
+    sources,
+    selectedSourceId,
+    selectedSourceName,
     refresh,
+    selectSource,
   } = useChangelog();
 
   const {
@@ -99,7 +103,7 @@ function App() {
   }, [download, latestVersion, playingFor]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen bg-cream-50 dark:bg-charcoal-900 transition-colors duration-500">
       <Header
         version={latestVersion}
         lastFetched={lastFetched}
@@ -111,6 +115,12 @@ function App() {
         isEmailSending={isEmailSending}
         refreshInterval={refreshInterval}
         onRefreshIntervalChange={handleRefreshIntervalChange}
+        defaultTheme={getDefaultTheme()}
+        onDefaultThemeChange={setDefaultTheme}
+        sources={sources}
+        selectedSourceId={selectedSourceId}
+        selectedSourceName={selectedSourceName}
+        onSelectSource={selectSource}
       />
 
       <TabNav activeTab={activeTab} onTabChange={setActiveTab} isAnalyzing={isAnalyzing} />
@@ -118,12 +128,12 @@ function App() {
       <main className="pb-24">
         {error ? (
           <div className="max-w-4xl mx-auto p-8">
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
-              <p className="font-medium">Error loading changelog</p>
-              <p className="text-sm mt-1">{error}</p>
+            <div className="bg-coral-400/10 dark:bg-coral-600/10 border border-coral-400 dark:border-coral-600 rounded-xl p-5 text-coral-700 dark:text-coral-400">
+              <p className="font-semibold">Error loading changelog</p>
+              <p className="text-sm mt-1 opacity-80">{error}</p>
               <button
                 onClick={refresh}
-                className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                className="mt-4 px-5 py-2.5 bg-coral-600 text-white rounded-xl hover:bg-coral-700 transition-all text-sm font-medium shadow-sm hover:shadow-md"
               >
                 Try Again
               </button>
@@ -174,7 +184,7 @@ function App() {
       {/* Floating Chat Button */}
       <button
         onClick={() => setIsChatOpen(true)}
-        className="fixed bottom-24 right-6 w-14 h-14 bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 z-30"
+        className="fixed bottom-24 right-6 w-14 h-14 bg-coral-600 hover:bg-coral-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-105 hover:shadow-xl z-30"
         aria-label="Open changelog chat"
         title="Ask about changelogs"
       >

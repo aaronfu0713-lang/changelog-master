@@ -37,6 +37,7 @@ function App() {
     play,
     pause,
     stop,
+    seek,
     download,
   } = useAudio();
 
@@ -175,6 +176,7 @@ function App() {
           onSpeedChange={setPlaybackSpeed}
           onPlay={play}
           onPause={pause}
+          onSeek={seek}
           onDownload={handleDownload}
         />
       </div>

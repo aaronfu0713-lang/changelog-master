@@ -18,6 +18,7 @@ interface UseAudioReturn {
   play: () => void;
   pause: () => void;
   stop: () => void;
+  seek: (time: number) => void;
   download: (filename: string) => void;
 }
 
@@ -136,6 +137,13 @@ export function useAudio(): UseAudioReturn {
     }
   }, []);
 
+  const seek = useCallback((time: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.max(0, Math.min(time, audioRef.current.duration || 0));
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  }, []);
+
   const download = useCallback(
     (filename: string) => {
       if (audioBuffer) {
@@ -161,6 +169,7 @@ export function useAudio(): UseAudioReturn {
     play,
     pause,
     stop,
+    seek,
     download,
   };
 }

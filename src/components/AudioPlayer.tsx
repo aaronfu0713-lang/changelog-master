@@ -14,6 +14,7 @@ interface AudioPlayerProps {
   onSpeedChange: (speed: number) => void;
   onPlay: () => void;
   onPause: () => void;
+  onSeek: (time: number) => void;
   onDownload: () => void;
 }
 
@@ -31,6 +32,7 @@ export function AudioPlayer({
   onSpeedChange,
   onPlay,
   onPause,
+  onSeek,
   onDownload,
 }: AudioPlayerProps) {
   const formatTime = (seconds: number) => {
@@ -40,6 +42,14 @@ export function AudioPlayer({
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = clickX / rect.width;
+    const seekTime = percentage * duration;
+    onSeek(seekTime);
+  };
 
   if (!audioUrl) {
     return (
@@ -123,9 +133,18 @@ export function AudioPlayer({
 
               <div className="flex-1 flex items-center gap-2">
                 <span className="text-xs text-charcoal-500 dark:text-charcoal-400 w-10 flex-shrink-0 font-mono">{formatTime(currentTime)}</span>
-                <div className="flex-1 h-2 bg-cream-200 dark:bg-charcoal-600 rounded-full overflow-hidden min-w-[60px]">
+                <div
+                  className="flex-1 h-2 bg-cream-200 dark:bg-charcoal-600 rounded-full overflow-hidden min-w-[60px] cursor-pointer hover:h-3 transition-all"
+                  onClick={handleProgressClick}
+                  role="slider"
+                  aria-label="Seek audio"
+                  aria-valuenow={currentTime}
+                  aria-valuemin={0}
+                  aria-valuemax={duration}
+                  tabIndex={0}
+                >
                   <div
-                    className="h-full bg-gradient-to-r from-teal-500 to-coral-500 rounded-full transition-all duration-100"
+                    className="h-full bg-gradient-to-r from-teal-500 to-coral-500 rounded-full transition-all duration-100 pointer-events-none"
                     style={{ width: `${progress}%` }}
                   />
                 </div>

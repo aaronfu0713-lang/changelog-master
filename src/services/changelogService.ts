@@ -88,7 +88,8 @@ export function parseChangelog(
   let currentVersion: ChangelogVersion | null = null;
 
   for (const line of lines) {
-    const versionMatch = line.match(/^##\s+\[?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)\]?(?:\s*[-–]\s*(.+))?/);
+    // 通用版本正则：匹配 # 或 ## 开头，版本号可带链接，日期格式多样
+    const versionMatch = line.match(/^#{1,2}\s+\[?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)\]?(?:\([^)]*\))?(?:\s*[-–(]\s*(.+?)[\s)]*)?$/);
 
     if (versionMatch) {
       if (currentVersion) {

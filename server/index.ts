@@ -183,6 +183,9 @@ async function fetchChangelog(url: string): Promise<string> {
   return response.text();
 }
 
+// 通用 changelog 版本正则：匹配 # 或 ## 开头，版本号可带链接、日期格式多样
+const VERSION_REGEX = /^#{1,2}\s+\[?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)\]?(?:\([^)]*\))?(?:\s*[-–(]\s*(.+?)[\s)]*)?$/;
+
 function parseLatestVersion(markdown: string): { version: string; content: string } | null {
   const lines = markdown.split('\n');
   let version = '';
@@ -190,7 +193,7 @@ function parseLatestVersion(markdown: string): { version: string; content: strin
   let capturing = false;
 
   for (const line of lines) {
-    const versionMatch = line.match(/^##\s+\[?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)\]?/);
+    const versionMatch = line.match(VERSION_REGEX);
     if (versionMatch) {
       if (capturing) break; // Stop at second version
       version = versionMatch[1];

@@ -1,6 +1,6 @@
-import { Play, Pause, Download, Volume2, Gauge } from 'lucide-react';
-import type { VoiceName } from '../types';
-import { VOICE_OPTIONS } from '../types';
+import { Play, Pause, Download, Volume2, Gauge, Globe } from 'lucide-react';
+import type { VoiceName, TTSLanguage } from '../types';
+import { VOICE_OPTIONS, TTS_LANGUAGES } from '../types';
 
 interface AudioPlayerProps {
   audioUrl: string | null;
@@ -9,8 +9,10 @@ interface AudioPlayerProps {
   duration: number;
   playbackSpeed: number;
   selectedVoice: VoiceName;
+  selectedLanguage: TTSLanguage;
   playingLabel: string | null;
   onVoiceChange: (voice: VoiceName) => void;
+  onLanguageChange: (lang: TTSLanguage) => void;
   onSpeedChange: (speed: number) => void;
   onPlay: () => void;
   onPause: () => void;
@@ -27,8 +29,10 @@ export function AudioPlayer({
   duration,
   playbackSpeed,
   selectedVoice,
+  selectedLanguage,
   playingLabel,
   onVoiceChange,
+  onLanguageChange,
   onSpeedChange,
   onPlay,
   onPause,
@@ -51,23 +55,48 @@ export function AudioPlayer({
     onSeek(seekTime);
   };
 
+  // 语言 + 声音选择器（复用逻辑）
+  const renderSelectors = () => (
+    <>
+      {/* 语言选择 */}
+      <div className="flex items-center gap-2">
+        <Globe className="w-4 h-4 text-charcoal-500 dark:text-charcoal-400" />
+        <select
+          value={selectedLanguage}
+          onChange={(e) => onLanguageChange(e.target.value as TTSLanguage)}
+          className="text-sm bg-cream-100 dark:bg-charcoal-700 border border-cream-300 dark:border-charcoal-500 rounded-xl px-3 py-2 text-charcoal-900 dark:text-cream-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors"
+        >
+          {TTS_LANGUAGES.map((lang) => (
+            <option key={lang.code} value={lang.code}>
+              {lang.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {/* 声音选择 */}
+      <div className="flex items-center gap-2">
+        <Volume2 className="w-4 h-4 text-charcoal-500 dark:text-charcoal-400" />
+        <select
+          value={selectedVoice}
+          onChange={(e) => onVoiceChange(e.target.value as VoiceName)}
+          className="text-sm bg-cream-100 dark:bg-charcoal-700 border border-cream-300 dark:border-charcoal-500 rounded-xl px-4 py-2 text-charcoal-900 dark:text-cream-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors"
+        >
+          {VOICE_OPTIONS.map((voice) => (
+            <option key={voice.name} value={voice.name}>
+              {voice.name} ({voice.tone})
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
+  );
+
   if (!audioUrl) {
     return (
       <div className="border-t border-cream-300 dark:border-charcoal-500 bg-white dark:bg-charcoal-800 p-4 transition-colors duration-500">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-center gap-4">
-            <Volume2 className="w-4 h-4 text-charcoal-400 dark:text-charcoal-500" />
-            <select
-              value={selectedVoice}
-              onChange={(e) => onVoiceChange(e.target.value as VoiceName)}
-              className="text-sm bg-cream-100 dark:bg-charcoal-700 border border-cream-300 dark:border-charcoal-500 rounded-xl px-4 py-2 text-charcoal-900 dark:text-cream-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors"
-            >
-              {VOICE_OPTIONS.map((voice) => (
-                <option key={voice.name} value={voice.name}>
-                  {voice.name} ({voice.tone})
-                </option>
-              ))}
-            </select>
+            {renderSelectors()}
             <span className="text-sm text-charcoal-500 dark:text-charcoal-400">
               Click a speaker icon to generate audio
             </span>
@@ -89,21 +118,7 @@ export function AudioPlayer({
           )}
 
           <div className="flex flex-wrap items-center justify-center gap-4">
-            {/* Voice Selector */}
-            <div className="flex items-center gap-2">
-              <Volume2 className="w-4 h-4 text-charcoal-500 dark:text-charcoal-400" />
-              <select
-                value={selectedVoice}
-                onChange={(e) => onVoiceChange(e.target.value as VoiceName)}
-                className="text-sm bg-cream-100 dark:bg-charcoal-700 border border-cream-300 dark:border-charcoal-500 rounded-xl px-4 py-2 text-charcoal-900 dark:text-cream-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors"
-              >
-                {VOICE_OPTIONS.map((voice) => (
-                  <option key={voice.name} value={voice.name}>
-                    {voice.name} ({voice.tone})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {renderSelectors()}
 
             {/* Speed Selector */}
             <div className="flex items-center gap-2">

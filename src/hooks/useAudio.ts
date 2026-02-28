@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import type { VoiceName } from '../types';
+import type { VoiceName, TTSLanguage } from '../types';
 import { generateAudio, createAudioUrl, downloadAudio, getCachedAudio, hashString } from '../services/ttsService';
 
 interface LastPlayedAudio {
   textHash: string;
   voice: VoiceName;
+  language: TTSLanguage;
   label: string;
 }
 
@@ -19,7 +20,9 @@ interface UseAudioReturn {
   playbackSpeed: number;
   error: string | null;
   selectedVoice: VoiceName;
+  selectedLanguage: TTSLanguage;
   setSelectedVoice: (voice: VoiceName) => void;
+  setSelectedLanguage: (lang: TTSLanguage) => void;
   setPlaybackSpeed: (speed: number) => void;
   generateAndPlay: (text: string, label: string) => Promise<void>;
   play: () => void;
@@ -48,6 +51,9 @@ export function useAudio(): UseAudioReturn {
       (import.meta.env.VITE_VOICE_PREFERENCE as VoiceName) ||
       'Charon'
   );
+  const [selectedLanguage, setSelectedLanguageState] = useState<TTSLanguage>(
+    (localStorage.getItem('ttsLanguage') as TTSLanguage) || 'en'
+  );
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasRestoredRef = useRef(false);
@@ -55,6 +61,11 @@ export function useAudio(): UseAudioReturn {
   const handleVoiceChange = (voice: VoiceName) => {
     setSelectedVoice(voice);
     localStorage.setItem('voicePreference', voice);
+  };
+
+  const handleLanguageChange = (lang: TTSLanguage) => {
+    setSelectedLanguageState(lang);
+    localStorage.setItem('ttsLanguage', lang);
   };
 
   const handleSpeedChange = useCallback((speed: number) => {
@@ -106,7 +117,6 @@ export function useAudio(): UseAudioReturn {
       audio.play().then(() => {
         setIsPlaying(true);
       }).catch(() => {
-        // Auto-play might be blocked by browser
         setIsPlaying(false);
       });
     }
@@ -125,7 +135,8 @@ export function useAudio(): UseAudioReturn {
         const lastPlayed: LastPlayedAudio = JSON.parse(saved);
         setIsRestoring(true);
 
-        const cached = await getCachedAudio(lastPlayed.textHash, lastPlayed.voice);
+        const cacheKey = `${lastPlayed.voice}_${lastPlayed.language || 'en'}`;
+        const cached = await getCachedAudio(lastPlayed.textHash, cacheKey);
         if (cached) {
           console.log('Restored last played audio from cache');
           setupAudioElement(cached, lastPlayed.label, false);
@@ -146,15 +157,14 @@ export function useAudio(): UseAudioReturn {
       setError(null);
 
       try {
-        const buffer = await generateAudio(text, selectedVoice);
+        const buffer = await generateAudio(text, selectedVoice, selectedLanguage);
 
         if (audioUrl) {
           URL.revokeObjectURL(audioUrl);
         }
 
-        // Save last played info to localStorage for restore on reload
         const textHash = hashString(text);
-        const lastPlayed: LastPlayedAudio = { textHash, voice: selectedVoice, label };
+        const lastPlayed: LastPlayedAudio = { textHash, voice: selectedVoice, language: selectedLanguage, label };
         localStorage.setItem('lastPlayedAudio', JSON.stringify(lastPlayed));
 
         setupAudioElement(buffer, label, true);
@@ -164,7 +174,7 @@ export function useAudio(): UseAudioReturn {
         setGeneratingFor(null);
       }
     },
-    [selectedVoice, audioUrl, setupAudioElement]
+    [selectedVoice, selectedLanguage, audioUrl, setupAudioElement]
   );
 
   const play = useCallback(() => {
@@ -218,7 +228,9 @@ export function useAudio(): UseAudioReturn {
     playbackSpeed,
     error,
     selectedVoice,
+    selectedLanguage,
     setSelectedVoice: handleVoiceChange,
+    setSelectedLanguage: handleLanguageChange,
     setPlaybackSpeed: handleSpeedChange,
     generateAndPlay,
     play,

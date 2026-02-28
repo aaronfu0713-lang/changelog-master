@@ -73,6 +73,20 @@ export type VoiceName =
   | 'Sadaltager'
   | 'Sulafat';
 
+// TTS 语言选项
+export type TTSLanguage = 'en' | 'cmn';
+
+export interface TTSLanguageOption {
+  code: TTSLanguage;
+  label: string;
+  prompt: string; // TTS 提示词，引导模型用对应语言朗读
+}
+
+export const TTS_LANGUAGES: TTSLanguageOption[] = [
+  { code: 'en', label: 'English', prompt: 'Read this changelog summary in a clear, informative tone:' },
+  { code: 'cmn', label: '中文', prompt: '请用清晰、专业的语气朗读以下更新摘要：' },
+];
+
 export interface VoiceOption {
   name: VoiceName;
   tone: string;

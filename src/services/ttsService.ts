@@ -1,4 +1,5 @@
-import type { VoiceName } from '../types';
+import type { VoiceName, TTSLanguage } from '../types';
+import { TTS_LANGUAGES } from '../types';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const TTS_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent';
@@ -96,19 +97,23 @@ async function setCachedAudio(textHash: string, voice: string, audioData: ArrayB
 
 export { hashString };
 
-export async function generateAudio(text: string, voiceName: VoiceName): Promise<ArrayBuffer> {
+export async function generateAudio(text: string, voiceName: VoiceName, language: TTSLanguage = 'en'): Promise<ArrayBuffer> {
   if (!GEMINI_API_KEY) {
     throw new Error('Gemini API key not configured');
   }
 
+  // 缓存 key 包含语言，避免不同语言命中同一缓存
+  const cacheKey = `${voiceName}_${language}`;
   const textHash = hashString(text);
 
   // Check SQLite cache first
-  const cached = await getCachedAudio(textHash, voiceName);
+  const cached = await getCachedAudio(textHash, cacheKey);
   if (cached) {
     console.log('Using cached audio from SQLite');
     return cached;
   }
+
+  const langConfig = TTS_LANGUAGES.find(l => l.code === language) || TTS_LANGUAGES[0];
 
   const response = await fetch(`${TTS_ENDPOINT}?key=${GEMINI_API_KEY}`, {
     method: 'POST',
@@ -120,7 +125,7 @@ export async function generateAudio(text: string, voiceName: VoiceName): Promise
         {
           parts: [
             {
-              text: `Read this changelog summary in a clear, informative tone:\n\n${text}`,
+              text: `${langConfig.prompt}\n\n${text}`,
             },
           ],
         },
@@ -159,7 +164,7 @@ export async function generateAudio(text: string, voiceName: VoiceName): Promise
   const wavBuffer = pcmToWav(bytes.buffer);
 
   // Save to SQLite cache
-  await setCachedAudio(textHash, voiceName, wavBuffer);
+  await setCachedAudio(textHash, cacheKey, wavBuffer);
 
   return wavBuffer;
 }

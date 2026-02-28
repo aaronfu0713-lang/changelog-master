@@ -31,7 +31,9 @@ function App() {
     duration,
     playbackSpeed,
     selectedVoice,
+    selectedLanguage,
     setSelectedVoice,
+    setSelectedLanguage,
     setPlaybackSpeed,
     generateAndPlay,
     play,
@@ -171,8 +173,10 @@ function App() {
           duration={duration}
           playbackSpeed={playbackSpeed}
           selectedVoice={selectedVoice}
+          selectedLanguage={selectedLanguage}
           playingLabel={playingFor}
           onVoiceChange={setSelectedVoice}
+          onLanguageChange={setSelectedLanguage}
           onSpeedChange={setPlaybackSpeed}
           onPlay={play}
           onPause={pause}

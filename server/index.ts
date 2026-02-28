@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import Database from 'better-sqlite3';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cron, { ScheduledTask } from 'node-cron';
 
@@ -18,8 +19,14 @@ const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL;
 
+// 确保 data 目录存在
+const dataDir = path.join(__dirname, '..', 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
 // Initialize SQLite database
-const dbPath = path.join(__dirname, '..', 'data', 'audio.db');
+const dbPath = path.join(dataDir, 'audio.db');
 const db = new Database(dbPath);
 
 // Create tables
@@ -1227,7 +1234,6 @@ app.get('/api/health', (_req, res) => {
 
 // 生产环境：托管前端构建产物
 const distPath = path.join(__dirname, '..', 'dist');
-import fs from 'fs';
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
   // 所有非 /api 请求都返回 index.html（SPA 路由，Express 5 语法）

@@ -65,8 +65,8 @@ export function Header({
                   >
                     <ChevronDown className="w-4 h-4" />
                   </button>
-                  <div className="absolute left-0 top-full mt-2 w-72 bg-white dark:bg-charcoal-700 rounded-xl shadow-xl border border-cream-300 dark:border-charcoal-500 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
-                    <div className="py-2">
+                  <div className="absolute left-0 top-full pt-2 w-72 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div className="bg-white dark:bg-charcoal-700 rounded-xl shadow-xl border border-cream-300 dark:border-charcoal-500 overflow-hidden py-2">
                       {activeSources.map((source) => (
                         <button
                           key={source.id}

@@ -3,6 +3,7 @@ import { TTS_LANGUAGES } from '../types';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const TTS_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent';
+const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
 
 function hashString(str: string): string {
   let hash = 0;
@@ -97,6 +98,28 @@ async function setCachedAudio(textHash: string, voice: string, audioData: ArrayB
 
 export { hashString };
 
+// 用 Gemini 将文本翻译为目标语言
+async function translateText(text: string, targetLang: TTSLanguage): Promise<string> {
+  if (targetLang === 'en') return text;
+
+  const response = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: `将以下软件更新日志摘要翻译为简体中文，保持专业技术术语准确，语言自然流畅，适合语音朗读。只输出翻译结果，不要任何解释。\n\n${text}` }] }],
+      generationConfig: { temperature: 0.3 },
+    }),
+  });
+
+  if (!response.ok) {
+    console.error('Translation failed, using original text');
+    return text;
+  }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || text;
+}
+
 export async function generateAudio(text: string, voiceName: VoiceName, language: TTSLanguage = 'en'): Promise<ArrayBuffer> {
   if (!GEMINI_API_KEY) {
     throw new Error('Gemini API key not configured');
@@ -115,6 +138,9 @@ export async function generateAudio(text: string, voiceName: VoiceName, language
 
   const langConfig = TTS_LANGUAGES.find(l => l.code === language) || TTS_LANGUAGES[0];
 
+  // 非英文：先翻译内容，再用目标语言朗读
+  const ttsText = await translateText(text, language);
+
   const response = await fetch(`${TTS_ENDPOINT}?key=${GEMINI_API_KEY}`, {
     method: 'POST',
     headers: {
@@ -125,7 +151,7 @@ export async function generateAudio(text: string, voiceName: VoiceName, language
         {
           parts: [
             {
-              text: `${langConfig.prompt}\n\n${text}`,
+              text: `${langConfig.prompt}\n\n${ttsText}`,
             },
           ],
         },

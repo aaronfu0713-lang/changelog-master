@@ -1225,6 +1225,18 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+// 生产环境：托管前端构建产物
+const distPath = path.join(__dirname, '..', 'dist');
+import fs from 'fs';
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  // 所有非 /api 请求都返回 index.html（SPA 路由，Express 5 语法）
+  app.get('{*path}', (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+  console.log(`[Static] Serving frontend from ${distPath}`);
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

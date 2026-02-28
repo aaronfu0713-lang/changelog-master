@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Settings, X, Clock, Bell, Volume2, Loader2, CheckCircle, Mail, AlertCircle, Moon } from 'lucide-react';
-import { VOICE_OPTIONS } from '../types';
+import { Settings, X, Clock, Bell, Volume2, Globe, Loader2, CheckCircle, Mail, AlertCircle, Moon } from 'lucide-react';
+import { VOICE_OPTIONS, TTS_LANGUAGES } from '../types';
 
 interface SettingsPanelProps {
   refreshInterval: number;
@@ -42,6 +42,7 @@ export function SettingsPanel({ refreshInterval, onRefreshIntervalChange, defaul
   const [alwaysSendEmail, setAlwaysSendEmail] = useState(false);
   const [notificationCheckInterval, setNotificationCheckInterval] = useState(0);
   const [notificationVoice, setNotificationVoice] = useState('Charon');
+  const [notificationLanguage, setNotificationLanguage] = useState('en');
   const [monitorStatus, setMonitorStatus] = useState<{
     lastKnownVersion: string | null;
     isRunning: boolean;
@@ -79,6 +80,7 @@ export function SettingsPanel({ refreshInterval, onRefreshIntervalChange, defaul
       setAlwaysSendEmail(settings.alwaysSendEmail === 'true');
       setNotificationCheckInterval(parseInt(settings.notificationCheckInterval) || 0);
       setNotificationVoice(settings.notificationVoice || 'Charon');
+      setNotificationLanguage(settings.notificationLanguage || 'en');
       setMonitorStatus(status);
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -122,6 +124,11 @@ export function SettingsPanel({ refreshInterval, onRefreshIntervalChange, defaul
     await saveSetting('notificationVoice', voice);
   };
 
+  const handleNotificationLanguageChange = async (lang: string) => {
+    setNotificationLanguage(lang);
+    await saveSetting('notificationLanguage', lang);
+  };
+
   const testNotificationCheck = async () => {
     setTestingNotification(true);
     setTestResult(null);
@@ -150,7 +157,7 @@ export function SettingsPanel({ refreshInterval, onRefreshIntervalChange, defaul
       const res = await fetch('/api/send-demo-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voice: notificationVoice }),
+        body: JSON.stringify({ voice: notificationVoice, language: notificationLanguage }),
       });
       if (res.ok) {
         setDemoEmailResult('success');
@@ -335,6 +342,26 @@ export function SettingsPanel({ refreshInterval, onRefreshIntervalChange, defaul
                       {VOICE_OPTIONS.map((voice) => (
                         <option key={voice.name} value={voice.name}>
                           {voice.name} ({voice.tone})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Language selection for notifications */}
+                  <div className="mb-4">
+                    <label className="flex items-center gap-2 text-sm text-charcoal-600 dark:text-charcoal-400 mb-1">
+                      <Globe className="w-4 h-4" />
+                      Audio language for email attachment
+                    </label>
+                    <select
+                      value={notificationLanguage}
+                      onChange={(e) => handleNotificationLanguageChange(e.target.value)}
+                      disabled={!emailNotificationsEnabled}
+                      className="w-full bg-cream-100 dark:bg-charcoal-700 border border-cream-300 dark:border-charcoal-500 rounded-xl px-4 py-2 text-charcoal-700 dark:text-cream-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors disabled:opacity-50"
+                    >
+                      {TTS_LANGUAGES.map((lang) => (
+                        <option key={lang.code} value={lang.code}>
+                          {lang.label}
                         </option>
                       ))}
                     </select>

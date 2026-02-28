@@ -257,8 +257,44 @@ ${changelogText}`;
   }
 }
 
-async function generateTTSAudio(text: string, voice: string = 'Charon'): Promise<Buffer | null> {
+// TTS 语言配置（与前端 TTS_LANGUAGES 保持一致）
+const TTS_LANG_CONFIG: Record<string, { prompt: string }> = {
+  en: { prompt: 'Read this changelog summary in a clear, informative tone:' },
+  cmn: { prompt: '请用清晰、专业的语气朗读以下更新摘要：' },
+};
+
+// 用 Gemini 将文本翻译为目标语言
+async function translateTextForTTS(text: string, language: string): Promise<string> {
+  if (language === 'en' || !GEMINI_API_KEY) return text;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `将以下软件更新日志摘要翻译为简体中文，保持专业技术术语准确，语言自然流畅，适合语音朗读。只输出翻译结果，不要任何解释。\n\n${text}` }] }],
+          generationConfig: { temperature: 0.3 },
+        }),
+      }
+    );
+
+    if (!response.ok) return text;
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || text;
+  } catch {
+    console.error('[TTS] Translation failed, using original text');
+    return text;
+  }
+}
+
+async function generateTTSAudio(text: string, voice: string = 'Charon', language: string = 'en'): Promise<Buffer | null> {
   if (!GEMINI_API_KEY) return null;
+
+  // 非英文先翻译，再用目标语言朗读
+  const ttsText = await translateTextForTTS(text, language);
+  const langConfig = TTS_LANG_CONFIG[language] || TTS_LANG_CONFIG.en;
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_API_KEY}`,
@@ -266,7 +302,7 @@ async function generateTTSAudio(text: string, voice: string = 'Charon'): Promise
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: `Read this changelog summary:\n\n${text}` }] }],
+        contents: [{ parts: [{ text: `${langConfig.prompt}\n\n${ttsText}` }] }],
         generationConfig: {
           responseModalities: ['AUDIO'],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
@@ -409,8 +445,10 @@ async function checkSourceForNewChangelog(source: ChangelogSource): Promise<void
     // Generate audio
     console.log(`[Monitor] Generating audio for ${source.name}...`);
     const voiceSetting = settingsStmt.get('notificationVoice') as { value: string } | undefined;
+    const langSetting = settingsStmt.get('notificationLanguage') as { value: string } | undefined;
     const voice = voiceSetting?.value || 'Charon';
-    const audioBuffer = await generateTTSAudio(analysis.tldr, voice);
+    const language = langSetting?.value || 'en';
+    const audioBuffer = await generateTTSAudio(analysis.tldr, voice, language);
 
     // Send email
     console.log(`[Monitor] Sending notification email for ${source.name}...`);
@@ -597,7 +635,7 @@ app.post('/api/send-demo-email', async (req, res) => {
   }
 
   try {
-    const { voice = 'Charon', sourceId } = req.body;
+    const { voice = 'Charon', language = 'en', sourceId } = req.body;
 
     // Get source URL
     let sourceUrl = DEFAULT_CHANGELOG_URL;
@@ -638,8 +676,8 @@ app.post('/api/send-demo-email', async (req, res) => {
 
     analysis.version = `${sourceName} ${latest.version}`;
 
-    console.log('[Demo] Generating audio...');
-    const audioBuffer = await generateTTSAudio(analysis.tldr, voice);
+    console.log(`[Demo] Generating audio (language: ${language})...`);
+    const audioBuffer = await generateTTSAudio(analysis.tldr, voice, language);
 
     console.log('[Demo] Sending email with attachment...');
     const sent = await sendEmailWithAttachment(analysis, audioBuffer);
